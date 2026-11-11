@@ -1,23 +1,30 @@
 
-"""CS 444 CodeQL demonstration application.
+"""CS 444 CodeQL Demonstration Application.
 
-Updated version with security vulnerabilities fixed.
+The original five security issues have been fixed.
+
+BONUS POINT ATTEMPT:
+Issue 6 demonstrates insecure temporary file creation.
+
+This version is intentionally vulnerable for CodeQL
+testing only. Do not run or deploy it.
 """
 
 import ipaddress
-import json
 import sqlite3
 import subprocess
+import tempfile
 from pathlib import Path
 
 from flask import Flask, request, send_from_directory
 
 app = Flask(__name__)
+
 DATABASE = "students.db"
 UPLOAD_FOLDER = Path(__file__).resolve().parent / "uploads"
 
 
-# Fix 1: SQL Injection
+# FIX 1: SQL Injection
 @app.get("/student")
 def student():
     """Use parameterized SQL queries."""
@@ -26,7 +33,7 @@ def student():
 
     connection = sqlite3.connect(DATABASE)
 
-    # User input is handled as a parameter
+    # Prevent SQL injection with a parameterized query
     query = "SELECT name, major FROM students WHERE name = ?"
 
     rows = connection.execute(
@@ -38,7 +45,7 @@ def student():
     return {"students": rows}
 
 
-# Fix 2: Command Injection
+# FIX 2: Command Injection
 @app.get("/ping")
 def ping():
     """Validate input and avoid shell commands."""
@@ -48,7 +55,7 @@ def ping():
     try:
         ip = ipaddress.ip_address(host)
 
-        # Only allow local IP addresses
+        # Only allow loopback IP addresses
         if not ip.is_loopback:
             return {"error": "Invalid host"}, 400
 
@@ -67,7 +74,7 @@ def ping():
     return result.stdout
 
 
-# Fix 3: Path Traversal
+# FIX 3: Path Traversal
 @app.get("/download")
 def download():
     """Restrict file downloads to the uploads folder."""
@@ -76,35 +83,55 @@ def download():
         "filename", "example.txt"
     )
 
-    # Only allow files within the uploads folder
     return send_from_directory(
         str(UPLOAD_FOLDER),
         filename
     )
 
 
-# Fix 4: Unsafe Deserialization
+# FIX 4: Unsafe Deserialization
 @app.post("/restore")
 def restore():
     """Use JSON instead of unsafe pickle loading."""
 
-    try:
-        data = request.get_json()
+    data = request.get_json(silent=True)
 
-        if not isinstance(data, dict):
-            return {"error": "Expected JSON object"}, 400
+    if not isinstance(data, dict):
+        return {"error": "Expected JSON object"}, 400
 
-        return {"restored": data}
-
-    except Exception:
-        return {"error": "Invalid JSON data"}, 400
+    return {"restored": data}
 
 
-# Fix 5: Flask Debug Mode
+# FIX 5: Flask Debug Mode
+# Debug mode is disabled in the main application.
+
+
+# ==========================================
+# BONUS POINT ATTEMPT - SECURITY ISSUE #6
+# ==========================================
+
+@app.get("/bonus-temp")
+def bonus_temp():
+    """Example of insecure temporary file creation."""
+
+    # Vulnerability:
+    # mktemp() creates a predictable file path
+    # without securely creating the file.
+    filename = tempfile.mktemp()
+
+    # Another process could create the file
+    # before this application opens it.
+    with open(filename, "w") as file:
+        file.write("Temporary test data")
+
+    return {"message": "Temporary file created"}
+
+
+# Main Application
 if __name__ == "__main__":
 
-    # Debug mode disabled
-    # Only accessible from the local computer
+    # Security fix: Debug mode disabled
+    # Application only listens locally
     app.run(
         host="127.0.0.1",
         port=5000,
