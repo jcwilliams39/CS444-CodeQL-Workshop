@@ -1,58 +1,99 @@
+
 """CS 444 CodeQL demonstration application.
 
-INTENTIONALLY INSECURE TRAINING CODE — DO NOT DEPLOY OR EXPOSE TO THE INTERNET.
-Use only in a controlled class exercise, and fix findings before using it.
+INTENTIONALLY INSECURE TRAINING CODE.
+DO NOT RUN OR DEPLOY THIS APPLICATION.
+
+This application contains five security examples
+for testing GitHub CodeQL.
 """
 
 import os
 import pickle
 import sqlite3
 import subprocess
+
 from flask import Flask, request, send_file
 
 app = Flask(__name__)
 DATABASE = "students.db"
 
 
+# Example 1: SQL Injection
 @app.get("/student")
 def student():
-    """Example 1: SQL injection through string-built SQL."""
+    """Vulnerable SQL query using user input."""
+
     student_name = request.args.get("name", "")
+
     connection = sqlite3.connect(DATABASE)
-    query = "SELECT name, major FROM students WHERE name = '" + student_name + "'"
+
+    # Vulnerability: User input is added directly to SQL
+    query = (
+        "SELECT name, major FROM students WHERE name = '"
+        + student_name
+        + "'"
+    )
+
     rows = connection.execute(query).fetchall()
     connection.close()
+
     return {"students": rows}
 
 
+# Example 2: Command Injection
 @app.get("/ping")
 def ping():
-    """Example 2: command injection through shell=True."""
+    """Vulnerable command execution."""
+
     host = request.args.get("host", "127.0.0.1")
-    result = subprocess.check_output("ping -c 1 " + host, shell=True, text=True)
+
+    # Vulnerability: Untrusted input is passed to shell
+    result = subprocess.check_output(
+        "ping -c 1 " + host,
+        shell=True,
+        text=True
+    )
+
     return result
 
 
+# Example 3: Path Traversal
 @app.get("/download")
 def download():
-    """Example 3: path traversal from untrusted filename."""
-    filename = request.args.get("filename", "example.txt")
+    """Vulnerable file download."""
+
+    filename = request.args.get(
+        "filename",
+        "example.txt"
+    )
+
+    # Vulnerability: Filename is not validated
     path = os.path.join("uploads", filename)
+
     return send_file(path)
 
 
+# Example 4: Unsafe Deserialization
 @app.post("/restore")
 def restore():
-    """Example 4: unsafe deserialization of untrusted request bytes."""
+    """Vulnerable deserialization of user input."""
+
     data = request.get_data()
+
+    # Vulnerability: Untrusted data is deserialized
     restored = pickle.loads(data)
+
     return {"restored": str(restored)}
 
 
-# Example 5: hardcoded secret for training only (not a real credential).
-app.config["SECRET_KEY"] = "training-demo-secret-do-not-use-in-production"
-
-
+# Example 5: Flask Debug Mode
 if __name__ == "__main__":
-    # Local development only; never expose this insecure app to a network.
-    app.run(host="127.0.0.1", port=5000, debug=False)
+
+    # Vulnerability: Debug mode is enabled
+    # and the server listens on all interfaces
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=True
+    )
