@@ -110,21 +110,19 @@ def restore():
 # BONUS POINT ATTEMPT - SECURITY ISSUE #6
 # ==========================================
 
+
+# BONUS POINT ATTEMPT - Fix 6
+# Secure temporary file creation
+
 @app.get("/bonus-temp")
 def bonus_temp():
-    """Example of insecure temporary file creation."""
+    """Uses secure temporary file creation."""
 
-    # Vulnerability:
-    # mktemp() creates a predictable file path
-    # without securely creating the file.
-    filename = tempfile.mktemp()
-
-    # Another process could create the file
-    # before this application opens it.
-    with open(filename, "w") as file:
+    with tempfile.TemporaryFile(mode="w+t") as file:
         file.write("Temporary test data")
 
-    return {"message": "Temporary file created"}
+    return {"message": "Temporary file handled securely"}
+
 
 
 # Main Application
